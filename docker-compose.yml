@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: daas
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+
+  migrate:
+    build: .
+    command: ["daas", "migrate"]
+    env_file: .env
+    environment:
+      DAAS_DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/daas
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      DAAS_DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/daas
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build: .
+    command: ["daas", "scheduler"]
+    env_file: .env
+    environment:
+      DAAS_DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/daas
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

@@ -1,0 +1,43 @@
+# DaaS engine build log — captured 2026-10-27T07:24:44Z from commit db18560
+
+## 1. Test suite (real Postgres 16)
+..................................................                       [100%]
+50 passed in 7.93s
+
+## 2. Migrations
+INFO alembic.runtime.migration Context impl PostgresqlImpl.
+INFO alembic.runtime.migration Will assume transactional DDL.
+No new upgrade operations detected.
+
+## 3. Live incremental ingest (NY DOS + CO SOS open data)
+INFO daas.ingest.pipeline ingest ny_dos since 2026-10-17
+INFO daas.ingest.pipeline ingest ny_dos success fetched=5413 inserted=0 updated=0 skipped=0
+INFO daas.ingest.pipeline ingest co_sos since 2026-10-17
+INFO daas.ingest.pipeline ingest co_sos success fetched=4001 inserted=0 updated=0 skipped=0
+INFO daas flagged 0 rows filed by bulk agents
+
+## 4. Data profile
+ source | records | with_address | with_contact | with_industry | holding | avg_score | score_75_plus | latest_filing 
+--------+---------+--------------+--------------+---------------+---------+-----------+---------------+---------------
+ co_sos |    4552 |         4343 |         2359 |          1407 |     341 |        68 |          2187 | 2026-10-24
+ ny_dos |    6306 |         4453 |         1812 |          1935 |     881 |        59 |          1301 | 2026-10-24
+(2 rows)
+
+## 5. API smoke test
+$ GET /health
+{"ok":true}
+$ GET /v1/businesses (no key)
+HTTP 401
+$ GET /v1/businesses?state=CO&industry=construction_trades&min_score=75&exclude_holding=true&limit=3  (growth key; names only)
+HTTP/1.1 200 OK
+x-ratelimit-limit: 120
+x-ratelimit-remaining: 119
+x-quota-remaining: 24997
+  2026-10-24  score=85  Flatirons Contracting LLC  (Lakewood, CO)  industry=construction_trades
+  2026-10-24  score=85  Eben-Ezer Flooring LLC  (Denver, CO)  industry=construction_trades
+  2026-10-24  score=85  Sons of Thunders Builders Ltd.  (Berthoud, CO)  industry=construction_trades
+  next_cursor present: True
+$ GET /v1/account
+  plan=growth period=2026-10 records_used=3 remaining=24997
+$ GET /v1/businesses/export.csv?limit=5 (header row)
+id,name,entity_type,entity_category,is_foreign,home_jurisdiction,registered_state,status,formed_on,street1,street2,city,region,postal_code,country,county,contact_name,registered_agent_name,registered_agent_is_commercial,industry,is_holding_vehicle,lead_score,source,source_record_id
